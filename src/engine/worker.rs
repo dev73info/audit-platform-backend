@@ -64,7 +64,6 @@ struct WorkerSpec {
     trigger_id: u64,
     trigger_name: String,
     batch_size: usize,
-    audit_concurrency: usize,
     project_sem: Arc<Semaphore>,
     audit_sem: Arc<Semaphore>,
 }
@@ -244,7 +243,6 @@ impl Scheduler {
                     trigger_id: row.trigger_id,
                     trigger_name: row.trigger_name,
                     batch_size,
-                    audit_concurrency,
                     project_sem,
                     audit_sem: Arc::new(Semaphore::new(audit_concurrency)),
                 },
@@ -489,6 +487,15 @@ async fn handle_entry(
         sync_wait_ms: None,
         trace_id: message.msg_id.clone(),
     };
+
+    tracing::debug!(
+        project_id = spec.project_id,
+        audit_id = spec.audit_id,
+        trigger = %spec.trigger_name,
+        msg_id = ?message.msg_id,
+        submit_at = ?message.submit_at,
+        "开始处理队列消息"
+    );
 
     let input = PipelineInput {
         command,

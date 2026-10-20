@@ -193,14 +193,6 @@ impl MetricsRegistry {
     }
 }
 
-fn build_labels(labels: &[&str]) -> Labels {
-    labels
-        .iter()
-        .enumerate()
-        .map(|(index, value)| (format!("label{index}"), value.to_string()))
-        .collect()
-}
-
 fn render_labels(labels: &Labels) -> String {
     if labels.is_empty() {
         return String::new();

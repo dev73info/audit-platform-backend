@@ -1,0 +1,57 @@
+# audit-platform 后端默认配置。
+# 本机真实配置写 local.toml（不入库），也可用 APP__<SECTION>__<KEY> 环境变量覆盖。
+
+[server]
+host = "0.0.0.0"
+port = 8090
+# 允许的前端来源，逗号分隔；生产按实际域名改
+cors_allow_origins = "http://localhost:5181,http://127.0.0.1:5181"
+
+[database]
+url = "mysql://audit:audit@127.0.0.1:3306/audit_platform"
+max_connections = 20
+min_connections = 2
+acquire_timeout_ms = 10000
+# 迁移用：是否在启动时自动建表（生产建议关掉，交给 migrate 二进制）
+auto_migrate = true
+
+[redis]
+url = "redis://127.0.0.1:6379"
+# Redis 不可用时是否降级为「仅数据库唯一索引去重」
+degrade_to_db_only = true
+
+[security]
+# 生产必须改：随机 32 字节以上
+jwt_secret = "change-me-in-local-toml"
+# 密钥主密钥（base64，32 字节），用于 AES-256-GCM 加密连接配置
+encryption_key = ""
+# 初始管理员账号；仅在 admin 用户不存在时创建
+bootstrap_admin_username = "admin"
+bootstrap_admin_password = "Test@123456"
+# 图形验证码：连续失败多少次后出现
+captcha_after_failures = 3
+# 账号锁定阈值与时长
+lock_after_failures = 5
+lock_minutes = 15
+# 开放 API 签名时间窗口（秒）
+signature_tolerance_sec = 300
+
+[audit]
+# 幂等锁租约（秒）
+lock_ttl_sec = 300
+# 单项目默认配额
+default_max_concurrency = 50
+default_max_qps = 100
+default_max_mysql_pool = 20
+default_max_redis_conn = 20
+default_max_media_size_mb = 50
+default_max_api_call_per_task = 10
+# 全局 MySQL 连接池可分配比例（0.8 = 80%）
+global_pool_ratio = 0.8
+# 单项目可申请的 MySQL 池硬上限
+quota_hard_limit_mysql_pool = 200
+
+[metrics]
+enabled = true
+# 指标在内存中的保留时长（秒），用于看板实时查询
+retention_sec = 900

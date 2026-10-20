@@ -1,0 +1,50 @@
+[package]
+name = "audit-platform"
+version = "0.1.0"
+edition = "2024"
+description = "独立审核系统平台 · Rust 后端"
+
+[lib]
+name = "audit_platform"
+path = "src/lib.rs"
+
+[[bin]]
+name = "audit-platform"
+path = "src/main.rs"
+
+[[bin]]
+name = "migrate"
+path = "src/bin/migrate.rs"
+
+[dependencies]
+actix-web = { version = "4", default-features = false, features = ["compat", "macros", "rustls-0_23", "unicode"] }
+actix-ws = "0.3"
+actix-files = "0.6"
+actix-cors = "0.7"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+chrono = { version = "0.4", features = ["serde", "alloc"] }
+thiserror = "2"
+anyhow = "1"
+argon2 = "0.5"
+password-hash = { version = "0.5", features = ["rand_core"] }
+jsonwebtoken = "9"
+aes-gcm = "0.10"
+hmac = "0.12"
+sha2 = "0.10"
+rand = "0.9"
+base64 = "0.22"
+urlencoding = "2.1"
+regex = "1"
+futures-util = "0.3"
+uuid = { version = "1", features = ["v4"] }
+redis = { version = "0.27", features = ["aio", "tokio-comp", "connection-manager", "script"] }
+sqlx = { version = "0.8", default-features = false, features = ["mysql", "runtime-tokio-rustls", "chrono", "json", "macros"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "time", "macros", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+toml = "0.8"
+
+[profile.dev]
+debug = 1

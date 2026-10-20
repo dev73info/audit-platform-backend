@@ -1,0 +1,45 @@
+# 本机开发配置。真实值写 local.toml（不入库）。
+# 复制：cp local.example.toml local.toml
+
+[server]
+host = "0.0.0.0"
+port = 8090
+cors_allow_origins = "http://localhost:5181,http://127.0.0.1:5181"
+
+[database]
+url = "mysql://audit:audit@127.0.0.1:3306/audit_platform"
+max_connections = 20
+min_connections = 2
+acquire_timeout_ms = 10000
+auto_migrate = true
+
+[redis]
+url = "redis://127.0.0.1:6379"
+degrade_to_db_only = true
+
+[security]
+# 换成随机值：openssl rand -base64 48
+jwt_secret = "please-generate-a-random-secret"
+# 32 字节 base64：openssl rand -base64 32
+encryption_key = ""
+bootstrap_admin_username = "admin"
+bootstrap_admin_password = "Test@123456"
+captcha_after_failures = 3
+lock_after_failures = 5
+lock_minutes = 15
+signature_tolerance_sec = 300
+
+[audit]
+lock_ttl_sec = 300
+default_max_concurrency = 50
+default_max_qps = 100
+default_max_mysql_pool = 20
+default_max_redis_conn = 20
+default_max_media_size_mb = 50
+default_max_api_call_per_task = 10
+global_pool_ratio = 0.8
+quota_hard_limit_mysql_pool = 200
+
+[metrics]
+enabled = true
+retention_sec = 900

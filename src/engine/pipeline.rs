@@ -101,6 +101,7 @@ pub struct PipelineInput {
 #[derive(Debug, Clone)]
 pub struct PipelineOutcome {
     pub task_id: u64,
+    pub task_no: String,
     pub status: TaskStatus,
     pub result: TaskResult,
     pub rule_hit: Vec<RuleGroupTrace>,
@@ -213,6 +214,7 @@ async fn execute_steps(
             );
             return Ok(PipelineOutcome {
                 task_id: existing,
+                task_no: String::new(),
                 status: TaskStatus::Duplicated,
                 result: TaskResult::Unknown,
                 rule_hit: Vec::new(),
@@ -329,6 +331,7 @@ async fn execute_steps(
                 .await?;
                 return Ok(PipelineOutcome {
                     task_id,
+                    task_no: String::new(),
                     status: TaskStatus::Duplicated,
                     result: TaskResult::Unknown,
                     rule_hit: Vec::new(),
@@ -363,9 +366,8 @@ async fn execute_steps(
     });
 
     if state.redis_available() {
-        let mut conn = match state.redis.clone() {
-            Some(value) => value,
-            None => return Err(ApiError::internal("Redis 连接不可用")),
+        let Some(mut conn) = state.redis.clone() else {
+            return Err(ApiError::internal("Redis 连接不可用"));
         };
         let payload_text = serde_json::to_string(&message)?;
         let added = redis::cmd("XADD")
@@ -376,8 +378,12 @@ async fn execute_steps(
             .query_async::<String>(&mut conn)
             .await;
         if let Err(err) = added {
-            tracing::error!(error = %err, queue = %queue_key, "任务入队失败");
-            return Err(ApiError::internal(format!("任务入队失败：{err}")));
+            if !state.redis_degrade_allowed() {
+                tracing::error!(error = %err, queue = %queue_key, "任务入队失败");
+                return Err(ApiError::internal(format!("任务入队失败：{err}")));
+            }
+            // 队列不可用：任务已经在库里，Worker 池稍后补消费；当前请求继续内联处理。
+            tracing::warn!(error = %err, queue = %queue_key, "任务入队失败，本次请求内联处理");
         }
 
         // 幂等标记：窗口内重复提交直接命中。
@@ -647,6 +653,7 @@ async fn execute_steps(
 
     Ok(PipelineOutcome {
         task_id,
+        task_no,
         status: final_status,
         result: final_result,
         rule_hit: traces,
@@ -660,12 +667,16 @@ async fn execute_steps(
 // ---------------------------------------------------------------------------
 
 /// 抢幂等锁。
+///
+/// Redis 不可用（连不上、认证失败、命令报错）时**降级**为数据库唯一索引去重，
+/// 只打告警不失败——单点依赖挂掉不应该让整条审核链路停摆。
 async fn acquire_lock(
     state: &AppState,
     project_id: u64,
     hash: &str,
 ) -> Result<LockState, ApiError> {
     let Some(mut conn) = state.redis.clone() else {
+        tracing::warn!(project_id, "Redis 不可用，幂等锁降级为数据库唯一索引");
         return Ok(LockState::Degraded);
     };
 
@@ -678,11 +689,19 @@ async fn acquire_lock(
         .arg("EX")
         .arg(LOCK_TTL_SEC)
         .query_async::<Option<String>>(&mut conn)
-        .await
-        .map_err(|err| {
-            tracing::error!(error = %err, "抢幂等锁失败");
-            ApiError::internal("抢幂等锁失败")
-        })?;
+        .await;
+
+    let reply = match reply {
+        Ok(reply) => reply,
+        Err(err) => {
+            if !state.redis_degrade_allowed() {
+                tracing::error!(error = %err, project_id, "抢幂等锁失败");
+                return Err(ApiError::internal("抢幂等锁失败"));
+            }
+            tracing::warn!(error = %err, project_id, "抢幂等锁失败，降级为数据库唯一索引");
+            return Ok(LockState::Degraded);
+        }
+    };
 
     match reply {
         Some(_) => {

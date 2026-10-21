@@ -80,6 +80,15 @@ impl ApiError {
         }
     }
 
+    /// 带自定义错误码的 400。错误码取自 `doc/API.md` 的错误码表。
+    pub fn bad_request_with(code: &'static str, message: impl Into<String>) -> Self {
+        Self::BadRequest {
+            code,
+            message: message.into(),
+            field_errors: Vec::new(),
+        }
+    }
+
     pub fn invalid_param(message: impl Into<String>, field_errors: Vec<FieldError>) -> Self {
         Self::BadRequest {
             code: "INVALID_PARAM",

@@ -75,17 +75,22 @@ pub async fn verify(
 
     // 时间偏差
     signature::check_timestamp(&request.timestamp, state.settings.security.signature_tolerance_sec)
-        .map_err(|_| ApiError::bad_request("TIMESTAMP_EXPIRED"))?;
+        .map_err(|_| ApiError::bad_request_with("TIMESTAMP_EXPIRED", "时间戳偏差超过允许范围"))?;
 
     // Nonce 防重放
     if let Some(redis) = state.redis.as_ref() {
         let mut conn = redis.clone();
         let key = format!("audit:{}:nonce:{}", record.project_id, request.nonce);
-        let inserted: bool = conn.set_nx(&key, "1").await.unwrap_or(false);
-        if inserted {
-            let _: () = conn.expire(&key, 600i64).await.unwrap_or(());
-        } else {
-            return Err(ApiError::bad_request("REPLAY_ATTACK"));
+        match conn.set_nx(&key, "1").await {
+            Ok(true) => {
+                let _: () = conn.expire(&key, 600i64).await.unwrap_or(());
+            }
+            Ok(false) => {
+                return Err(ApiError::bad_request_with("REPLAY_ATTACK", "Nonce 已被使用"));
+            }
+            Err(err) => {
+                tracing::warn!(error = %err, "写入 Nonce 失败，跳过防重放校验");
+            }
         }
     } else {
         tracing::warn!(app_key = %request.api_key, "Redis 不可用，Nonce 防重放已降级");
@@ -114,7 +119,10 @@ pub async fn verify(
             },
         )
         .await;
-        return Err(ApiError::bad_request("INVALID_SIGNATURE"));
+        return Err(ApiError::bad_request_with(
+            "INVALID_SIGNATURE",
+            "签名校验不通过",
+        ));
     }
 
     // IP 白名单
@@ -373,7 +381,7 @@ pub async fn submit(
 
     Ok(SubmitResponse {
         task_id: outcome.task_id,
-        task_no: String::new(),
+        task_no: outcome.task_no,
         dedupe: dedupe.to_string(),
         status: outcome.status.as_str().to_string(),
         submit_at: crate::common::now_iso8601(),

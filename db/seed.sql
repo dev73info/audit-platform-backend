@@ -138,7 +138,7 @@ ON DUPLICATE KEY UPDATE `name` = VALUES(`name`);
 
 INSERT INTO `rule_item` (`id`, `rule_id`, `field`, `operator`, `value_json`, `case_sensitive`, `negate`, `sort_order`) VALUES
   (4401, 4301, 'media.text',     'contains_any', JSON_ARRAY('违禁词A', '违禁词B'), 0, 0, 0),
-  (4402, 4302, 'media.text_len', 'lte',         200,                           0, 0, 0)
+  (4402, 4302, 'media.text_len', 'lte',         CAST(200 AS JSON), 0, 0, 0)
 ON DUPLICATE KEY UPDATE `field` = VALUES(`field`);
 
 INSERT INTO `result_route` (`id`, `project_id`, `audit_id`, `result_type`, `exec_mode`, `on_error`, `actions_json`, `status`) VALUES

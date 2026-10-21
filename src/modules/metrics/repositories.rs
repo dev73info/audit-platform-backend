@@ -126,25 +126,34 @@ pub async fn backlog(state: &AppState, project_id: Option<u64>) -> Result<i64, A
 }
 
 /// 耗时分位（毫秒）。
+///
+/// MySQL 没有 `PERCENTILE_CONT`（那是 Oracle / MariaDB 的函数），
+/// 这里用窗口函数排序后按位置取：先给每行编号，再取第 `ceil(p * 总数)` 行。
 pub async fn duration_percentiles(
     state: &AppState,
     project_id: Option<u64>,
 ) -> Result<(i64, i64, i64), ApiError> {
     let mut query = sqlx::query(
         "SELECT
-            COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY duration_ms), 0) AS p50,
-            COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms), 0) AS p95,
-            COALESCE(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY duration_ms), 0) AS p99
-           FROM audit_task WHERE duration_ms IS NOT NULL",
+            MAX(CASE WHEN rn = CEIL(total * 0.50) THEN duration_ms END) AS p50,
+            MAX(CASE WHEN rn = CEIL(total * 0.95) THEN duration_ms END) AS p95,
+            MAX(CASE WHEN rn = CEIL(total * 0.99) THEN duration_ms END) AS p99
+           FROM (
+             SELECT duration_ms,
+                    ROW_NUMBER() OVER (ORDER BY duration_ms) AS rn,
+                    COUNT(*) OVER () AS total
+               FROM audit_task
+              WHERE duration_ms IS NOT NULL
+           ) t",
     );
     if let Some(value) = project_id {
         query = query.bind(value);
     }
     let row = query.fetch_one(&state.db).await?;
     Ok((
-        row.get::<Option<f64>, _>("p50").unwrap_or(0.0).round() as i64,
-        row.get::<Option<f64>, _>("p95").unwrap_or(0.0).round() as i64,
-        row.get::<Option<f64>, _>("p99").unwrap_or(0.0).round() as i64,
+        row.get::<Option<i64>, _>("p50").unwrap_or(0),
+        row.get::<Option<i64>, _>("p95").unwrap_or(0),
+        row.get::<Option<i64>, _>("p99").unwrap_or(0),
     ))
 }
 

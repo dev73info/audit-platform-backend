@@ -62,9 +62,17 @@ impl AppState {
         }
     }
 
-    /// Redis 是否可用。
+    /// Redis 是否可用（连接管理器已建立）。
     pub fn redis_available(&self) -> bool {
         self.redis.is_some()
+    }
+
+    /// Redis 出问题时是否允许降级（退到数据库唯一索引 / 内联处理）。
+    ///
+    /// 对应 `settings.redis.degrade_to_db_only`：关掉后 Redis 故障会直接让
+    /// 依赖它的链路失败，而不是悄悄降级。
+    pub fn redis_degrade_allowed(&self) -> bool {
+        self.settings.redis.degrade_to_db_only
     }
 }
 

@@ -1,14 +1,23 @@
 //! 雪花 ID 生成器：毫秒时间 + 节点 ID + 序列号，进程内单调递增。
 //!
-//! 与 `backend_73info` 的 ID 口径一致：64 位正整数，落库用 `bigint unsigned`。
+//! 落库用 `bigint unsigned`。**位布局必须守住 2^53**：
+//! JavaScript 的 `Number.MAX_SAFE_INTEGER` 是 9007199254740991，超过它 JSON 里的
+//! 数字解析就会丢精度——前端拿到的 ID 和库里对不上，接口直接 404。
+//! 所以时间戳 41 位 + 节点与序列共 12 位 = 53 位，
+//! 算下来 41 位毫秒够用到 2093 年。
+//!
+//! 取舍：节点 4 位（最多 16 个节点）、每毫秒 256 个序列。
+//! 这套系统是「一套后台 + 一个 Worker 池」的单体部署，够用。
 
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// 自定义纪元：2024-01-01T00:00:00Z，单位毫秒。
 const EPOCH_MS: i64 = 1_704_067_200_000;
-const NODE_BITS: u32 = 10;
-const SEQUENCE_BITS: u32 = 12;
+/// 节点 ID 位数：4 位 = 16 个节点。
+const NODE_BITS: u32 = 4;
+/// 序列号位数：8 位 = 每毫秒 256 个。
+const SEQUENCE_BITS: u32 = 8;
 
 #[derive(Debug)]
 pub struct IdGenerator {
@@ -23,7 +32,7 @@ struct State {
 }
 
 impl IdGenerator {
-    /// `node_id` 取 0~1023；同一进程内重复不影响正确性。
+    /// `node_id` 取 0~15；同一进程内重复不影响正确性。
     pub fn new(node_id: u64) -> Self {
         Self {
             node_id: node_id & ((1 << NODE_BITS) - 1),
@@ -103,5 +112,25 @@ mod tests {
         let a = IdGenerator::new(1);
         let b = IdGenerator::new(2);
         assert_ne!(a.next_id() >> SEQUENCE_BITS, b.next_id() >> SEQUENCE_BITS);
+    }
+
+    /// ID 必须落在 JavaScript 的安全整数范围内，否则前端 JSON 解析会丢精度。
+    #[test]
+    fn ids_fit_javascript_safe_integer() {
+        const JS_MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
+        let generator = IdGenerator::new(1);
+        for _ in 0..1000 {
+            let id = generator.next_id();
+            assert!(
+                id <= JS_MAX_SAFE_INTEGER,
+                "ID {id} 超过 JavaScript 安全整数上限，前端会丢精度"
+            );
+        }
+    }
+
+    /// 位布局总共 53 位：41 位毫秒 + 4 位节点 + 8 位序列。
+    #[test]
+    fn bit_layout_stays_within_53_bits() {
+        assert_eq!(NODE_BITS + SEQUENCE_BITS, 12);
     }
 }

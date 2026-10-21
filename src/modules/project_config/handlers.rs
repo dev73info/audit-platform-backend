@@ -109,11 +109,12 @@ pub async fn list_versions(
     ctx: AuthContext,
     state: web::Data<AppState>,
     path: web::Path<(u64, u64)>,
-) -> ApiResult<Vec<ConfigVersionItem>> {
+) -> ApiResult<crate::response::Page<ConfigVersionItem>> {
     ctx.require_permission("project:config:read")?;
     let (project_id, config_id) = path.into_inner();
     let data = service::list_versions(state.get_ref(), &ctx, project_id, config_id).await?;
-    ok(data)
+    let total = data.len() as u64;
+    ok(crate::response::Page::new(data, total, 1, total.max(1)))
 }
 
 /// 查看明文配置（二次确认口令）。

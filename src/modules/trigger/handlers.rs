@@ -15,10 +15,11 @@ pub async fn list_triggers(
     state: web::Data<AppState>,
     auth: AuthContext,
     path: web::Path<u64>,
-) -> ApiResult<Vec<TriggerSourceView>> {
+) -> ApiResult<crate::response::Page<TriggerSourceView>> {
     let audit_id = path.into_inner();
     let items = service::list_triggers(&state, &auth, audit_id).await?;
-    ok(items)
+    let total = items.len() as u64;
+    ok(crate::response::Page::new(items, total, 1, total.max(1)))
 }
 
 /// 新建触发源。
@@ -105,8 +106,9 @@ pub async fn recent_logs(
     state: web::Data<AppState>,
     auth: AuthContext,
     path: web::Path<u64>,
-) -> ApiResult<Vec<ConsumeLogView>> {
+) -> ApiResult<crate::response::Page<ConsumeLogView>> {
     let trigger_id = path.into_inner();
     let items = service::recent_logs(&state, &auth, trigger_id).await?;
-    ok(items)
+    let total = items.len() as u64;
+    ok(crate::response::Page::new(items, total, 1, total.max(1)))
 }

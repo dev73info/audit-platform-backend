@@ -93,11 +93,12 @@ pub async fn alerts(
     ctx: AuthContext,
     state: web::Data<AppState>,
     query: web::Query<ListQuery>,
-) -> ApiResult<Vec<crate::models::ops::AlertEventRow>> {
+) -> ApiResult<crate::response::Page<crate::models::ops::AlertEventRow>> {
     ctx.require_permission("metrics:read")?;
     let limit = query.page_size().min(200) as i64;
     let items = repositories::active_alerts(&state, limit).await?;
-    ok(items)
+    let total = items.len() as u64;
+    ok(crate::response::Page::new(items, total, query.page(), query.page_size()))
 }
 
 /// `GET /api/admin/v1/notifications`

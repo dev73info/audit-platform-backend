@@ -118,11 +118,12 @@ pub async fn list_rules(
     ctx: AuthContext,
     state: web::Data<AppState>,
     path: web::Path<u64>,
-) -> ApiResult<Vec<AuditRuleView>> {
+) -> ApiResult<crate::response::Page<AuditRuleView>> {
     ctx.require_permission("rule:read")?;
     let audit_id = path.into_inner();
     let data = service::list_rules(state.get_ref(), &ctx, audit_id).await?;
-    ok(data)
+    let total = data.len() as u64;
+    ok(crate::response::Page::new(data, total, 1, total.max(1)))
 }
 
 /// 新建规则组。

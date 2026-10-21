@@ -61,6 +61,7 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .app_data(state_data.clone())
+            .wrap(actix_web::middleware::from_fn(panic_guard))
             .wrap(actix_web::middleware::from_fn(trace_middleware))
             .wrap(cors)
             .configure(modules::configure)
@@ -86,6 +87,37 @@ pub async fn build_state(settings: &Settings) -> anyhow::Result<AppState> {
         metrics: Arc::new(MetricsRegistry::new()),
         ids: Arc::new(audit_platform::common::IdGenerator::from_env()),
     })
+}
+
+/// panic 兜底中间件。
+///
+/// sqlx 的 `Row::get` 在列类型与 Rust 类型不一致时会 panic，
+/// 而 handler 里的 panic 会让 actix 直接掐断连接（客户端看到「响应提前结束」）。
+/// 这里把 panic 兜成一次正常的 500，连接与工作线程都不受影响。
+async fn panic_guard(
+    req: ServiceRequest,
+    next: Next<impl MessageBody>,
+) -> Result<ServiceResponse<impl MessageBody>, Error> {
+    use futures_util::FutureExt;
+
+    let fut = next.call(req);
+    match std::panic::AssertUnwindSafe(fut).catch_unwind().await {
+        Ok(Ok(response)) => Ok(response),
+        Ok(Err(err)) => Err(err),
+        Err(payload) => {
+            tracing::error!("请求处理过程中发生 panic，已兜底为 500");
+            let message = if let Some(text) = payload.downcast_ref::<&str>() {
+                (*text).to_string()
+            } else if let Some(text) = payload.downcast_ref::<String>() {
+                text.clone()
+            } else {
+                "内部错误".to_string()
+            };
+            Err(Error::from(audit_platform::error::ApiError::internal(
+                format!("服务内部错误：{message}"),
+            )))
+        }
+    }
 }
 
 /// 追踪中间件：生成 `trace_id`、回写响应头、记录访问日志。

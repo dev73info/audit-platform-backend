@@ -61,10 +61,10 @@ pub async fn task_counts(
     let mut query = sqlx::query(
         "SELECT
             COUNT(*) AS total,
-            SUM(CASE WHEN result = 'PASS' THEN 1 ELSE 0 END) AS pass,
-            SUM(CASE WHEN result = 'REJECT' THEN 1 ELSE 0 END) AS reject,
-            SUM(CASE WHEN result = 'REVIEW' THEN 1 ELSE 0 END) AS review,
-            SUM(CASE WHEN status IN ('FAILED', 'DEAD_LETTER') THEN 1 ELSE 0 END) AS failed
+            CAST(SUM(CASE WHEN result = 'PASS' THEN 1 ELSE 0 END) AS SIGNED) AS pass,
+            CAST(SUM(CASE WHEN result = 'REJECT' THEN 1 ELSE 0 END) AS SIGNED) AS reject,
+            CAST(SUM(CASE WHEN result = 'REVIEW' THEN 1 ELSE 0 END) AS SIGNED) AS review,
+            CAST(SUM(CASE WHEN status IN ('FAILED', 'DEAD_LETTER') THEN 1 ELSE 0 END) AS SIGNED) AS failed
            FROM audit_task WHERE 1 = 1",
     );
     if let Some(value) = project_id {
@@ -164,7 +164,7 @@ pub async fn action_counts(
 ) -> Result<(i64, i64), ApiError> {
     let mut query = sqlx::query(
         "SELECT COUNT(*) AS total,
-                SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) AS failed
+                CAST(SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) AS SIGNED) AS failed
            FROM action_exec_log WHERE 1 = 1",
     );
     if let Some(value) = project_id {
@@ -186,10 +186,10 @@ pub async fn series(
     let mut query = sqlx::query(
         "SELECT
             DATE_FORMAT(created_at, '%Y-%m-%dT%H:00:00Z') AS bucket,
-            SUM(CASE WHEN result = 'PASS' THEN 1 ELSE 0 END) AS pass,
-            SUM(CASE WHEN result = 'REJECT' THEN 1 ELSE 0 END) AS reject,
-            SUM(CASE WHEN result = 'REVIEW' THEN 1 ELSE 0 END) AS review,
-            SUM(CASE WHEN status IN ('FAILED', 'DEAD_LETTER') THEN 1 ELSE 0 END) AS failed
+            CAST(SUM(CASE WHEN result = 'PASS' THEN 1 ELSE 0 END) AS SIGNED) AS pass,
+            CAST(SUM(CASE WHEN result = 'REJECT' THEN 1 ELSE 0 END) AS SIGNED) AS reject,
+            CAST(SUM(CASE WHEN result = 'REVIEW' THEN 1 ELSE 0 END) AS SIGNED) AS review,
+            CAST(SUM(CASE WHEN status IN ('FAILED', 'DEAD_LETTER') THEN 1 ELSE 0 END) AS SIGNED) AS failed
            FROM audit_task
           WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
           GROUP BY bucket ORDER BY bucket ASC",

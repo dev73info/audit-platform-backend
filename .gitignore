@@ -1,0 +1,19 @@
+# Rust 产物
+target/
+**/*.rs.bk
+
+# 本机配置（含 DSN / 密钥）：只入库 local.example.toml
+config/local.toml
+config/*.bak
+config/keys/
+data/
+logs/
+
+# 本地产物
+deploy/run/
+deploy/logs/
+*.log
+.DS_Store
+.idea/
+.vscode/
+.codegraph/
